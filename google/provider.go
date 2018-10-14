@@ -32,9 +32,13 @@ type Provider struct {
 var (
 	// ErrECDSANotDefined defines error if name of ECDSA private key is not defined
 	ErrECDSANotDefined = errors.New("Name of ECDSA private key is not defined")
+	// ErrECDSAVerifyFalse defines error if signature is not valid for given message
+	ErrECDSAVerifyFalse = errors.New("Signature is not valid for given message")
 
 	// ErrRSANotDefined defines error if name of RSA private key is not defined
 	ErrRSANotDefined = errors.New("Name of RSA private key is not defined")
+	// ErrRSAUnknown defines error for unknown type of RSA public key
+	ErrRSAUnknown = errors.New("Unknown type of RSA public key")
 
 	// ErrAESNotDefined defines error if name of AES key is not defined
 	ErrAESNotDefined = errors.New("Name of AES key is not defined")
@@ -115,7 +119,7 @@ func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) 
 
 	hashed := sha512.Sum384(plaintext)
 	if !ecdsa.Verify(key, hashed[:], parsedSig.R, parsedSig.S) {
-		return fmt.Errorf("Failed to verify signed ECDSA message")
+		return ErrECDSAVerifyFalse
 	}
 	return nil
 }
@@ -132,7 +136,7 @@ func (p Provider) EncryptRSA(ctx context.Context, plaintext []byte) ([]byte, err
 	// Perform type assertion to get the RSA key.
 	rsaKey, ok := key.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("Unknown type of public key")
+		return nil, ErrRSAUnknown
 	}
 
 	encryptedText, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaKey, plaintext, nil)
