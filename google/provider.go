@@ -69,7 +69,7 @@ func (p *Provider) RegisterRSA(name string) {
 }
 
 // RegisterAES accepts specified name/ID of AES symmetric key in Cloud KMS
-// name format: projects/{id}/locations/{location}/keyRings/{name}/cryptoKeys/{name}/cryptoKeyVersions/{version}
+// name format: projects/{id}/locations/{location}/keyRings/{name}/cryptoKeys/{name}
 func (p *Provider) RegisterAES(name string) {
 	p.path.aes = name
 }
