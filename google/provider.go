@@ -32,9 +32,18 @@ type Provider struct {
 var (
 	// ErrECDSANotDefined defines error if name of ECDSA private key is not defined
 	ErrECDSANotDefined = errors.New("Name of ECDSA private key is not defined")
+	// ErrECDSAVerifyFalse defines error if signature is not valid for given message
+	ErrECDSAVerifyFalse = errors.New("Signature is not valid for given message")
+	// ErrECDSAUnknown defines error for unknown type of ECDSA public key
+	ErrECDSAUnknown = errors.New("Unknown type of ECDSA public key")
+
+	// ErrKeyNotDefined defines error if name of private key is not defined
+	ErrKeyNotDefined = errors.New("Name of private key is not defined")
 
 	// ErrRSANotDefined defines error if name of RSA private key is not defined
 	ErrRSANotDefined = errors.New("Name of RSA private key is not defined")
+	// ErrRSAUnknown defines error for unknown type of RSA public key
+	ErrRSAUnknown = errors.New("Unknown type of RSA public key")
 
 	// ErrAESNotDefined defines error if name of AES key is not defined
 	ErrAESNotDefined = errors.New("Name of AES key is not defined")
@@ -69,7 +78,7 @@ func (p *Provider) RegisterRSA(name string) {
 }
 
 // RegisterAES accepts specified name/ID of AES symmetric key in Cloud KMS
-// name format: projects/{id}/locations/{location}/keyRings/{name}/cryptoKeys/{name}/cryptoKeyVersions/{version}
+// name format: projects/{id}/locations/{location}/keyRings/{name}/cryptoKeys/{name}
 func (p *Provider) RegisterAES(name string) {
 	p.path.aes = name
 }
@@ -99,9 +108,15 @@ func (p Provider) SignECDSA(ctx context.Context, plaintext []byte) ([]byte, erro
 // VerifyECDSA will verify that an
 // 'EC_SIGN_P384_SHA384' signature is valid for a given message
 func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) error {
-	key, err := p.publicECDSAKey(ctx)
+	key, err := p.publicKey(ctx, p.path.ecdsa)
 	if err != nil {
 		return err
+	}
+
+	// Perform type assertion to get the RSA key.
+	ecdsaKey, ok := key.(*ecdsa.PublicKey)
+	if !ok {
+		return ErrECDSAUnknown
 	}
 
 	decodedSignature, err := base64.StdEncoding.DecodeString(string(signature))
@@ -114,8 +129,8 @@ func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) 
 	}
 
 	hashed := sha512.Sum384(plaintext)
-	if !ecdsa.Verify(key, hashed[:], parsedSig.R, parsedSig.S) {
-		return fmt.Errorf("Failed to verify signed ECDSA message")
+	if !ecdsa.Verify(ecdsaKey, hashed[:], parsedSig.R, parsedSig.S) {
+		return ErrECDSAVerifyFalse
 	}
 	return nil
 }
@@ -124,7 +139,7 @@ func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) 
 // 'RSA_DECRYPT_OAEP_2048_SHA256' public key retrieved from Cloud KMS,
 // message length is maximum 128 bytes
 func (p Provider) EncryptRSA(ctx context.Context, plaintext []byte) ([]byte, error) {
-	key, err := p.publicRSAKey(ctx)
+	key, err := p.publicKey(ctx, p.path.rsa)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +147,7 @@ func (p Provider) EncryptRSA(ctx context.Context, plaintext []byte) ([]byte, err
 	// Perform type assertion to get the RSA key.
 	rsaKey, ok := key.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("Unknown type of public key")
+		return nil, ErrRSAUnknown
 	}
 
 	encryptedText, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaKey, plaintext, nil)
@@ -197,40 +212,21 @@ func (p Provider) DecryptAES(ctx context.Context, ciphertext []byte) ([]byte, er
 	return base64.StdEncoding.DecodeString(resp.Plaintext)
 }
 
-// publicECDSAKey retrieves the public key from a stored ECDSA asymmetric key pair on KMS.
-func (p Provider) publicECDSAKey(ctx context.Context) (*ecdsa.PublicKey, error) {
-	if p.path.ecdsa == "" {
-		return nil, ErrECDSANotDefined
+// publicKey retrieves the public key from a stored asymmetric key pair on KMS.
+func (p Provider) publicKey(ctx context.Context, key string) (interface{}, error) {
+	if key == "" {
+		return nil, ErrKeyNotDefined
 	}
 	response, err := p.client.Projects.Locations.KeyRings.CryptoKeys.CryptoKeyVersions.
-		GetPublicKey(p.path.ecdsa).Context(ctx).Do()
+		GetPublicKey(key).Context(ctx).Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch public ECDSA key: %+v", err)
-	}
-	keyBytes := []byte(response.Pem)
-	block, _ := pem.Decode(keyBytes)
-	key, err := x509.ParseECPrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse public ECDSA key: %+v", err)
-	}
-	return &key.PublicKey, nil
-}
-
-// publicRSAKey retrieves the public key from a stored RSA asymmetric key pair on KMS.
-func (p Provider) publicRSAKey(ctx context.Context) (interface{}, error) {
-	if p.path.rsa == "" {
-		return nil, ErrRSANotDefined
-	}
-	response, err := p.client.Projects.Locations.KeyRings.CryptoKeys.CryptoKeyVersions.
-		GetPublicKey(p.path.rsa).Context(ctx).Do()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch public RSA key: %+v", err)
+		return nil, fmt.Errorf("failed to fetch public key: %+v", err)
 	}
 	keyBytes := []byte(response.Pem)
 	block, _ := pem.Decode(keyBytes)
 	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse public RSA key: %+v", err)
+		return nil, fmt.Errorf("failed to parse public key: %+v", err)
 	}
 	return publicKey, nil
 }
