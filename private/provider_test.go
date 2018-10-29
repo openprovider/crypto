@@ -90,7 +90,7 @@ func TestEncryptDecryptRSA(t *testing.T) {
 	}
 	_, err = provider.DecryptRSA(ctx, append(encryptedMessage, []byte("++++++++++++")...))
 	if err == nil {
-		t.Error("Expected error of decoding base64, got nil")
+		t.Error("Expected error of decrypting, got nil")
 	}
 	decryptedMessage, err := provider.DecryptRSA(ctx, encryptedMessage)
 	if err != nil {
