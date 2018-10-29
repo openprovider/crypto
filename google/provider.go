@@ -102,7 +102,12 @@ func (p Provider) SignECDSA(ctx context.Context, plaintext []byte) ([]byte, erro
 		return nil, fmt.Errorf("Asymmetric sign request failed: %+v", err)
 
 	}
-	return []byte(response.Signature), nil
+	signature, err := base64.StdEncoding.DecodeString(response.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("Asymmetric sign failed to decode (base64): %+v", err)
+
+	}
+	return signature, nil
 }
 
 // VerifyECDSA will verify that an
@@ -119,12 +124,8 @@ func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) 
 		return ErrECDSAUnknown
 	}
 
-	decodedSignature, err := base64.StdEncoding.DecodeString(string(signature))
-	if err != nil {
-		return fmt.Errorf("Failed to decode (base64): %v", err)
-	}
 	var parsedSig struct{ R, S *big.Int }
-	if _, err := asn1.Unmarshal(decodedSignature, &parsedSig); err != nil {
+	if _, err := asn1.Unmarshal(signature, &parsedSig); err != nil {
 		return fmt.Errorf("Failed to unmarshal ECDSA signature: %v", err)
 	}
 
@@ -154,7 +155,7 @@ func (p Provider) EncryptRSA(ctx context.Context, plaintext []byte) ([]byte, err
 	if err != nil {
 		return nil, fmt.Errorf("RSA encryption failed: %+v", err)
 	}
-	return []byte(base64.StdEncoding.EncodeToString(encryptedText)), nil
+	return encryptedText, nil
 }
 
 // DecryptRSA will attempt to decrypt a given ciphertext with an
@@ -164,7 +165,7 @@ func (p Provider) DecryptRSA(ctx context.Context, ciphertext []byte) ([]byte, er
 		return nil, ErrRSANotDefined
 	}
 	decryptRequest := &cloudkms.AsymmetricDecryptRequest{
-		Ciphertext: string(ciphertext),
+		Ciphertext: base64.StdEncoding.EncodeToString(ciphertext),
 	}
 	response, err := p.client.Projects.Locations.KeyRings.CryptoKeys.CryptoKeyVersions.
 		AsymmetricDecrypt(p.path.rsa, decryptRequest).Context(ctx).Do()
@@ -173,7 +174,7 @@ func (p Provider) DecryptRSA(ctx context.Context, ciphertext []byte) ([]byte, er
 	}
 	decryptedText, err := base64.StdEncoding.DecodeString(response.Plaintext)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to decode (base64): %+v", err)
+		return nil, fmt.Errorf("RSA failed to decode (base64): %+v", err)
 
 	}
 	return decryptedText, nil
@@ -188,12 +189,17 @@ func (p Provider) EncryptAES(ctx context.Context, plaintext []byte) ([]byte, err
 	req := &cloudkms.EncryptRequest{
 		Plaintext: base64.StdEncoding.EncodeToString(plaintext),
 	}
-	resp, err := p.client.Projects.Locations.KeyRings.CryptoKeys.Encrypt(p.path.aes, req).Do()
+	response, err := p.client.Projects.Locations.KeyRings.CryptoKeys.Encrypt(p.path.aes, req).Do()
 	if err != nil {
 		return nil, fmt.Errorf("AES encryption request failed: %+v", err)
 	}
 
-	return []byte(resp.Ciphertext), nil
+	ciphertext, err := base64.StdEncoding.DecodeString(response.Ciphertext)
+	if err != nil {
+		return nil, fmt.Errorf("AES failed to decode (base64): %+v", err)
+
+	}
+	return ciphertext, nil
 }
 
 // DecryptAES will attempt to decrypt a given ciphertext with an
@@ -203,13 +209,13 @@ func (p Provider) DecryptAES(ctx context.Context, ciphertext []byte) ([]byte, er
 		return nil, ErrAESNotDefined
 	}
 	req := &cloudkms.DecryptRequest{
-		Ciphertext: string(ciphertext),
+		Ciphertext: base64.StdEncoding.EncodeToString(ciphertext),
 	}
-	resp, err := p.client.Projects.Locations.KeyRings.CryptoKeys.Decrypt(p.path.aes, req).Do()
+	response, err := p.client.Projects.Locations.KeyRings.CryptoKeys.Decrypt(p.path.aes, req).Do()
 	if err != nil {
 		return nil, fmt.Errorf("AES decryption request failed: %+v", err)
 	}
-	return base64.StdEncoding.DecodeString(resp.Plaintext)
+	return base64.StdEncoding.DecodeString(response.Plaintext)
 }
 
 // publicKey retrieves the public key from a stored asymmetric key pair on KMS.
@@ -220,13 +226,13 @@ func (p Provider) publicKey(ctx context.Context, key string) (interface{}, error
 	response, err := p.client.Projects.Locations.KeyRings.CryptoKeys.CryptoKeyVersions.
 		GetPublicKey(key).Context(ctx).Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch public key: %+v", err)
+		return nil, fmt.Errorf("Failed to fetch public key: %+v", err)
 	}
 	keyBytes := []byte(response.Pem)
 	block, _ := pem.Decode(keyBytes)
 	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key: %+v", err)
+		return nil, fmt.Errorf("Failed to parse public key: %+v", err)
 	}
 	return publicKey, nil
 }
