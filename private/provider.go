@@ -11,7 +11,6 @@ import (
 	"crypto/sha512"
 	"crypto/x509"
 	"encoding/asn1"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -140,7 +139,7 @@ func (p Provider) SignECDSA(ctx context.Context, plaintext []byte) ([]byte, erro
 		return nil, fmt.Errorf("Failed to marshal ECDSA signature: %v", err)
 	}
 
-	return []byte(base64.StdEncoding.EncodeToString(signature)), nil
+	return signature, nil
 }
 
 // VerifyECDSA will verify that an
@@ -152,11 +151,7 @@ func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) 
 		return ErrECDSANotDefined
 	}
 
-	decodedSignature, err := base64.StdEncoding.DecodeString(string(signature))
-	if err != nil {
-		return fmt.Errorf("Failed to decode (base64): %v", err)
-	}
-	if _, err := asn1.Unmarshal(decodedSignature, &es); err != nil {
+	if _, err := asn1.Unmarshal(signature, &es); err != nil {
 		return fmt.Errorf("Failed to unmarshal ECDSA signature: %v", err)
 	}
 
@@ -181,9 +176,9 @@ func (p Provider) EncryptRSA(ctx context.Context, plaintext []byte) ([]byte, err
 		&p.rsa.PublicKey, plaintext, nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to encrypt message: %v", err)
+		return nil, fmt.Errorf("RSA encryption failed:: %v", err)
 	}
-	return []byte(base64.StdEncoding.EncodeToString(encryptedText)), nil
+	return encryptedText, nil
 }
 
 // DecryptRSA will attempt to decrypt a given ciphertext with an
@@ -193,13 +188,9 @@ func (p Provider) DecryptRSA(ctx context.Context, ciphertext []byte) ([]byte, er
 		return nil, ErrRSANotDefined
 	}
 
-	encryptedText, err := base64.StdEncoding.DecodeString(string(ciphertext))
+	decryptedText, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, p.rsa, ciphertext, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to decode (base64): %v", err)
-	}
-	decryptedText, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, p.rsa, encryptedText, nil)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to decode decryted string: %v", err)
+		return nil, fmt.Errorf("RSA decryption request failed: %v", err)
 	}
 	return decryptedText, nil
 }
@@ -213,20 +204,20 @@ func (p Provider) EncryptAES(ctx context.Context, plaintext []byte) ([]byte, err
 
 	c, err := aes.NewCipher(p.aes)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create new cipher block: %v", err)
+		return nil, fmt.Errorf("AES failed to create new cipher block: %v", err)
 	}
 
 	gcm, err := cipher.NewGCM(c)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create new GCM block: %v", err)
+		return nil, fmt.Errorf("AES failed to create new GCM block: %v", err)
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("Failed to read random sequence: %v", err)
+		return nil, fmt.Errorf("AES failed to read random sequence: %v", err)
 	}
 
-	return []byte(base64.StdEncoding.EncodeToString(gcm.Seal(nonce, nonce, plaintext, nil))), nil
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
 }
 
 // DecryptAES will attempt to decrypt a given ciphertext with an
@@ -236,25 +227,21 @@ func (p Provider) DecryptAES(ctx context.Context, ciphertext []byte) ([]byte, er
 		return nil, ErrAESNotDefined
 	}
 
-	encryptedText, err := base64.StdEncoding.DecodeString(string(ciphertext))
-	if err != nil {
-		return nil, fmt.Errorf("Failed to decode (base64): %v", err)
-	}
 	c, err := aes.NewCipher(p.aes)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create new cipher block: %v", err)
+		return nil, fmt.Errorf("AES failed to create new cipher block: %v", err)
 	}
 
 	gcm, err := cipher.NewGCM(c)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create new GCM block: %v", err)
+		return nil, fmt.Errorf("AES failed to create new GCM block: %v", err)
 	}
 
 	nonceSize := gcm.NonceSize()
-	if len(encryptedText) < nonceSize {
-		return nil, fmt.Errorf("%s", "Ciphertext too short")
+	if len(ciphertext) < nonceSize {
+		return nil, fmt.Errorf("%s", "AES ciphertext too short")
 	}
 
-	nonce, encryptedText := encryptedText[:nonceSize], encryptedText[nonceSize:]
+	nonce, encryptedText := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	return gcm.Open(nil, nonce, encryptedText, nil)
 }
