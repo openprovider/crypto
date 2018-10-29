@@ -49,7 +49,8 @@ var (
 // PEM Block types
 const (
 	TypeECDSA = "EC PRIVATE KEY"
-	TypeRSA   = "PRIVATE KEY"
+	TypeRSA1  = "RSA PRIVATE KEY"
+	TypeRSA2  = "PRIVATE KEY"
 	TypeAES   = "AES KEY"
 )
 
@@ -86,7 +87,7 @@ func (p *Provider) RegisterPrivateKeyRSA(data []byte) error {
 		return ErrRSANotDefined
 	}
 	blockRSA, rest := pem.Decode(data)
-	if blockRSA == nil || blockRSA.Type != TypeRSA || len(rest) != 0 {
+	if blockRSA == nil || (blockRSA.Type != TypeRSA1 && blockRSA.Type != TypeRSA2) || len(rest) != 0 {
 		return ErrRSADecodePEM
 	}
 	rsaKey, err := x509.ParsePKCS8PrivateKey(blockRSA.Bytes)

@@ -257,7 +257,7 @@ func generateRSA() ([]byte, error) {
 	}
 
 	return pem.EncodeToMemory(&pem.Block{
-		Type:  TypeRSA,
+		Type:  TypeRSA1,
 		Bytes: block,
 	}), nil
 }
