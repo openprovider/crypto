@@ -48,10 +48,10 @@ var (
 
 // PEM Block types
 const (
-	TypeECDSA = "EC PRIVATE KEY"
-	TypeRSA1  = "RSA PRIVATE KEY"
-	TypeRSA2  = "PRIVATE KEY"
-	TypeAES   = "AES KEY"
+	TypeECDSA    = "EC PRIVATE KEY"
+	TypeRSAPKCS1 = "RSA PRIVATE KEY"
+	TypeRSAPKCS8 = "PRIVATE KEY"
+	TypeAES      = "AES KEY"
 )
 
 // New creates a new crypto provider initialized by ECDSA, RSA private keys and AES key
@@ -87,10 +87,17 @@ func (p *Provider) RegisterPrivateKeyRSA(data []byte) error {
 		return ErrRSANotDefined
 	}
 	blockRSA, rest := pem.Decode(data)
-	if blockRSA == nil || (blockRSA.Type != TypeRSA1 && blockRSA.Type != TypeRSA2) || len(rest) != 0 {
+	if blockRSA == nil || (blockRSA.Type != TypeRSAPKCS1 && blockRSA.Type != TypeRSAPKCS8) || len(rest) != 0 {
 		return ErrRSADecodePEM
 	}
-	rsaKey, err := x509.ParsePKCS8PrivateKey(blockRSA.Bytes)
+	var rsaKey interface{}
+	var err error
+	switch blockRSA.Type {
+	case TypeRSAPKCS8:
+		rsaKey, err = x509.ParsePKCS8PrivateKey(blockRSA.Bytes)
+	case TypeRSAPKCS1:
+		rsaKey, err = x509.ParsePKCS1PrivateKey(blockRSA.Bytes)
+	}
 	if err != nil {
 		return fmt.Errorf("Failed to parse DER encoded RSA private key: %v", err)
 	}
