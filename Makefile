@@ -1,5 +1,5 @@
 PROJECT=github.com/openprovider/crypto
-RELEASE?=v0.2.2
+RELEASE?=v0.2.3
 
 all: test lint
 
