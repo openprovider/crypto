@@ -27,21 +27,21 @@ type Provider struct {
 
 var (
 	// ErrECDSADecodePEM defines error of PEM decoding for ECDSA key
-	ErrECDSADecodePEM = errors.New("Failed to decode PEM block containing ECDSA private key")
+	ErrECDSADecodePEM = errors.New("failed to decode PEM block containing ECDSA private key")
 	// ErrECDSAVerifyFalse defines error if signature is not valid for given message
-	ErrECDSAVerifyFalse = errors.New("Signature is not valid for given message")
+	ErrECDSAVerifyFalse = errors.New("signature is not valid for given message")
 	// ErrECDSANotDefined defines error if ECDSA private key is not defined
 	ErrECDSANotDefined = errors.New("ECDSA private key is not defined")
 
 	// ErrRSADecodePEM defines error of PEM decoding for RSA key
-	ErrRSADecodePEM = errors.New("Failed to decode PEM block containing RSA private key")
+	ErrRSADecodePEM = errors.New("failed to decode PEM block containing RSA private key")
 	// ErrRSAUnknown defines error for unknown type of RSA key
-	ErrRSAUnknown = errors.New("Unknown type of RSA private key")
+	ErrRSAUnknown = errors.New("unknown type of RSA private key")
 	// ErrRSANotDefined defines error if RSA private key is not defined
 	ErrRSANotDefined = errors.New("RSA private key is not defined")
 
 	// ErrAESDecodePEM defines error of PEM decoding for AES key
-	ErrAESDecodePEM = errors.New("Failed to decode PEM block containing AES key")
+	ErrAESDecodePEM = errors.New("failed to decode PEM block containing AES key")
 	// ErrAESNotDefined defines error if AES key is not defined
 	ErrAESNotDefined = errors.New("AES key is not defined")
 )
@@ -75,7 +75,7 @@ func (p *Provider) RegisterPrivateKeyECDSA(data []byte) error {
 	var err error
 	p.ecdsa, err = x509.ParseECPrivateKey(blockECDSA.Bytes)
 	if err != nil {
-		return fmt.Errorf("Failed to parse ECDCA private key: %v", err)
+		return fmt.Errorf("failed to parse ECDCA private key: %v", err)
 	}
 
 	return nil
@@ -99,7 +99,7 @@ func (p *Provider) RegisterPrivateKeyRSA(data []byte) error {
 		rsaKey, err = x509.ParsePKCS1PrivateKey(blockRSA.Bytes)
 	}
 	if err != nil {
-		return fmt.Errorf("Failed to parse DER encoded RSA private key: %v", err)
+		return fmt.Errorf("failed to parse DER encoded RSA private key: %v", err)
 	}
 
 	var ok bool
@@ -140,11 +140,11 @@ func (p Provider) SignECDSA(ctx context.Context, plaintext []byte) ([]byte, erro
 	hashed := sha512.Sum384(plaintext)
 	r, s, err := ecdsa.Sign(rand.Reader, p.ecdsa, hashed[:])
 	if err != nil {
-		return nil, fmt.Errorf("Failed to sign using ECDSA: %v", err)
+		return nil, fmt.Errorf("failed to sign using ECDSA: %v", err)
 	}
 	signature, err := asn1.Marshal(ecdsaSignature{r, s})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal ECDSA signature: %v", err)
+		return nil, fmt.Errorf("failed to marshal ECDSA signature: %v", err)
 	}
 
 	return signature, nil
@@ -160,7 +160,7 @@ func (p Provider) VerifyECDSA(ctx context.Context, signature, plaintext []byte) 
 	}
 
 	if _, err := asn1.Unmarshal(signature, &es); err != nil {
-		return fmt.Errorf("Failed to unmarshal ECDSA signature: %v", err)
+		return fmt.Errorf("failed to unmarshal ECDSA signature: %v", err)
 	}
 
 	hashed := sha512.Sum384(plaintext)
