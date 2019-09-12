@@ -1,8 +1,8 @@
 module github.com/openprovider/crypto
 
-go 1.12
+go 1.13
 
 require (
-	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
-	google.golang.org/api v0.5.0
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	google.golang.org/api v0.10.0
 )
